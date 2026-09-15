@@ -123,3 +123,36 @@ Die Firmware nutzt die native Home Assistant API (`homeassistant` Plattform in E
     compile_process_limit: 1
   ```
   Zusätzlich kann im Home Assistant ESPHome Add-on unter *Konfiguration* der Wert `default_compile_process_limit: 1` gesetzt werden.
+
+---
+
+## Relevante Skills & Werkzeuge für Agenten
+
+Für Arbeiten an diesem Projekt sollten Agenten folgende Domänen-Skills und Werkzeuge gezielt heranziehen:
+
+### 1. Home Assistant Skill / REST API
+- **Einsatzbereich**: Abfragen von Entitätszuständen (`/api/states`), Attributen und Verifizieren verfügbarer Sensoren (`weather.*`, `sensor.core2_*`).
+- **Best Practice**: Bevor neue Sensoren in `seeed-xiao-esp32c3.yaml` referenziert werden, immer per REST API prüfen, ob die Entität in Home Assistant tatsächlich existiert, aktiv ist und Daten liefert.
+
+### 2. ESPHome Skill / CLI
+- **Einsatzbereich**: 
+  - Validierung von Konfigurationsdateien (`esphome config seeed-xiao-esp32c3.yaml`).
+  - C++ Lambda-Entwicklung für ePaper-Rendering (`it.print`, `it.rectangle`, `it.filled_rectangle`, `it.strftime`, `TextAlign`).
+  - Deep-Sleep-Orchestrierung (`deep_sleep:`, RTC-Variablen mit `restore_value: yes`, `prevent_deep_sleep` Schalter).
+  - Schriftarten- und Glyphen-Management (`gfonts://`, UTF-8 Glyphendeklaration, zwingende Vermeidung doppelter Glyphen).
+  - Build-Ressourcen-Steuerung (`compile_process_limit: 1` gegen OOM-Kills).
+
+### 3. esptool / Serial Recovery Skill
+- **Einsatzbereich**:
+  - Direktes Flashen über USB/Seriell (`esptool.py` oder `esphome run seeed-xiao-esp32c3.yaml --device <COMx>`).
+  - Wiederherstellung bei fehlerhafter Firmware, Bootloops oder unresponsiven Deep-Sleep-Zuständen.
+  - **Hardware-Bootloader-Einstieg am Panel**:
+    1. USB-C-Kabel mit dem PC verbinden.
+    2. **BOOT-Taste** (hinter dem Ausklappständer) gedrückt halten.
+    3. **RESET-Taste** einmal kurz drücken.
+    4. BOOT-Taste loslassen.
+    5. Der ESP32-C3 befindet sich nun im ROM-Download-Modus und kann zuverlässig geflasht werden.
+  - **Nützliche Befehle**:
+    - Chip-Erkennung & Port-Test: `esptool.py chip_id`
+    - Flash-Speicher löschen: `esptool.py erase_flash`
+    - Flash-Spezifikationen prüfen: `esptool.py flash_id`
