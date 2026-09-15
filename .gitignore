@@ -1,0 +1,16 @@
+# ESPHome build artifacts
+.esphome/
+*.bin
+*.elf
+
+# Sensitive configuration
+secrets.yaml
+
+# Visual companion / superpowers session files
+.superpowers/
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

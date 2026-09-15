@@ -1,0 +1,339 @@
+substitutions:
+  name: "seeed-xiao-esp32c3"
+  friendly_name: "Seeed XIAO ESP32C3"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: "2024.6.0"
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: arduino
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret seeed_xiao_esp32c3__encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret seeed_xiao_esp32c3__ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  ap:
+    ssid: "Seeed XIAO ESP3 Fallback Hotspot"
+    password: !secret seeed_xiao_esp32c3__ap_password
+
+captive_portal:
+
+# Synchronisierte Uhrzeit ueber Home Assistant
+time:
+  - platform: homeassistant
+    id: ha_time
+    timezone: "Europe/Berlin"
+
+# SPI Konfiguration fuer Seeed Studio XIAO ESP32-C3
+spi:
+  clk_pin: GPIO8
+  mosi_pin: GPIO10
+
+# Deep Sleep Steuerung
+# Standard: Wacht alle 15 Minuten auf, zieht Daten, zeichnet neu und schlaeft wieder ein.
+# Notfall-Timeout: Nach 45s wird in jedem Fall geschlafen, um den Akku zu schuetzen.
+deep_sleep:
+  id: deep_sleep_ctrl
+  run_duration: 45s
+  sleep_duration: 15min
+
+globals:
+  - id: refreshed_display
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+# Schalter in Home Assistant, um Deep Sleep fuer Updates/Wartung temporaer zu deaktivieren
+switch:
+  - platform: template
+    name: "Prevent Deep Sleep"
+    id: prevent_deep_sleep
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+
+# Home Assistant Sensoren
+sensor:
+  # Solarerzeugung
+  - platform: homeassistant
+    id: ha_solar_power
+    entity_id: sensor.core2_solar_live
+    internal: true
+  - platform: homeassistant
+    id: ha_solar_day_energy
+    entity_id: sensor.core2_solar_day_energy_kwh
+    internal: true
+
+  # Hausverbrauch
+  - platform: homeassistant
+    id: ha_house_power
+    entity_id: sensor.core2_house_live
+    internal: true
+  - platform: homeassistant
+    id: ha_house_day_energy
+    entity_id: sensor.core2_house_day_energy_kwh
+    internal: true
+
+  # Netzbilanz
+  - platform: homeassistant
+    id: ha_grid_import_power
+    entity_id: sensor.core2_grid_import_power
+    internal: true
+  - platform: homeassistant
+    id: ha_grid_export_power
+    entity_id: sensor.core2_grid_export_power
+    internal: true
+
+  # Wetterdaten aus weather.home
+  - platform: homeassistant
+    id: ha_weather_temp
+    entity_id: weather.home
+    attribute: temperature
+    internal: true
+  - platform: homeassistant
+    id: ha_weather_humidity
+    entity_id: weather.home
+    attribute: humidity
+    internal: true
+  - platform: homeassistant
+    id: ha_weather_wind_speed
+    entity_id: weather.home
+    attribute: wind_speed
+    internal: true
+  - platform: homeassistant
+    id: ha_weather_pressure
+    entity_id: weather.home
+    attribute: pressure
+    internal: true
+
+  # Lokale Diagnose: WLAN RSSI
+  - platform: wifi_signal
+    name: "WiFi RSSI"
+    id: wifi_rssi
+    update_interval: 15s
+
+text_sensor:
+  - platform: homeassistant
+    id: ha_weather_condition
+    entity_id: weather.home
+    internal: true
+
+# Schriftarten (Google Fonts - werden bei der Kompilierung automatisch geladen)
+font:
+  - file: "gfonts://Inter@700"
+    id: font_huge
+    size: 46
+    glyphs: '0123456789.,-+°C '
+  - file: "gfonts://Inter@700"
+    id: font_large
+    size: 34
+    glyphs: '0123456789.,-+Wkwh '
+  - file: "gfonts://Inter@700"
+    id: font_title
+    size: 22
+    glyphs: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäöüÄÖÜß.,-+°/ '
+  - file: "gfonts://Inter@600"
+    id: font_label
+    size: 15
+    glyphs: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäöüÄÖÜß.,-+:()/[] '
+  - file: "gfonts://Inter@400"
+    id: font_sub
+    size: 18
+    glyphs: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäöüÄÖÜß.,-+%:°/ '
+  - file: "gfonts://Inter@400"
+    id: font_small
+    size: 14
+    glyphs: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäöüÄÖÜß.,-+%:°/() '
+
+# 7.5" ePaper Display (Waveshare 7.50inv2 - 800x480)
+display:
+  - platform: waveshare_epaper
+    id: epaper_display
+    cs_pin: GPIO3
+    dc_pin: GPIO5
+    busy_pin:
+      number: GPIO4
+      inverted: true
+    reset_pin: GPIO2
+    model: 7.50inv2
+    update_interval: never
+    rotation: 0
+    lambda: |-
+      // 1. Hintergrund zuruecksetzen
+      it.fill(COLOR_OFF);
+
+      // 2. Kopfzeile (Header)
+      it.print(15, 12, id(font_title), "SMART HOME ENERGIE");
+      
+      auto time = id(ha_time).now();
+      if (time.is_valid()) {
+        it.strftime(785, 15, id(font_sub), TextAlign::TOP_RIGHT, "%A, %d.%m.%Y - %H:%M", time);
+      } else {
+        it.print(785, 15, id(font_sub), TextAlign::TOP_RIGHT, "Zeit wird synchronisiert...");
+      }
+
+      // Horizontale Trennlinie unter dem Header
+      it.line(10, 45, 790, 45);
+
+      // Vertikale Haupt-Trennlinie zwischen Energie (links) und Wetter/Status (rechts)
+      it.line(410, 55, 410, 465);
+
+      // ==========================================
+      // LINKE SPALTE: ENERGIE & LEISTUNG
+      // ==========================================
+
+      // --- Kachel 1: Solarerzeugung (PV) ---
+      it.rectangle(15, 60, 380, 125);
+      it.print(30, 70, id(font_label), "SOLARERZEUGUNG");
+      
+      if (!std::isnan(id(ha_solar_power).state)) {
+        it.printf(30, 95, id(font_large), "%.0f W", id(ha_solar_power).state);
+      } else {
+        it.print(30, 95, id(font_large), "-- W");
+      }
+
+      if (!std::isnan(id(ha_solar_day_energy).state)) {
+        it.printf(30, 150, id(font_sub), "Heute: %.2f kWh", id(ha_solar_day_energy).state);
+      } else {
+        it.print(30, 150, id(font_sub), "Heute: -- kWh");
+      }
+
+      // --- Kachel 2: Hausverbrauch ---
+      it.rectangle(15, 200, 380, 125);
+      it.print(30, 210, id(font_label), "HAUSVERBRAUCH");
+
+      if (!std::isnan(id(ha_house_power).state)) {
+        it.printf(30, 235, id(font_large), "%.0f W", id(ha_house_power).state);
+      } else {
+        it.print(30, 235, id(font_large), "-- W");
+      }
+
+      if (!std::isnan(id(ha_house_day_energy).state)) {
+        it.printf(30, 290, id(font_sub), "Heute: %.2f kWh", id(ha_house_day_energy).state);
+      } else {
+        it.print(30, 290, id(font_sub), "Heute: -- kWh");
+      }
+
+      // --- Kachel 3: Netzbilanz (Einspeisung / Bezug) ---
+      it.rectangle(15, 340, 380, 125);
+
+      float exp_power = id(ha_grid_export_power).state;
+      float imp_power = id(ha_grid_import_power).state;
+
+      if (!std::isnan(exp_power) && exp_power > 5.0f) {
+        it.print(30, 350, id(font_label), "NETZSTATUS: EINSPEISUNG");
+        it.printf(30, 375, id(font_large), "+%.0f W", exp_power);
+        it.print(30, 430, id(font_sub), "Ueberschuss wird eingespeist");
+      } else if (!std::isnan(imp_power) && imp_power > 5.0f) {
+        it.print(30, 350, id(font_label), "NETZSTATUS: BEZUG");
+        it.printf(30, 375, id(font_large), "-%.0f W", imp_power);
+        it.print(30, 430, id(font_sub), "Strombezug aus dem Netz");
+      } else {
+        it.print(30, 350, id(font_label), "NETZSTATUS: AUSGEGLICHEN");
+        it.print(30, 375, id(font_large), "0 W");
+        it.print(30, 430, id(font_sub), "Selbstversorgung aktiv");
+      }
+
+      // ==========================================
+      // RECHTE SPALTE: WETTER & SYSTEMSTATUS
+      // ==========================================
+
+      // --- Kachel 4: Wetter (Home Assistant) ---
+      it.rectangle(425, 60, 360, 305);
+      it.print(440, 72, id(font_label), "WETTER (HOME ASSISTANT)");
+
+      // Grosse Temperaturanzeige
+      if (!std::isnan(id(ha_weather_temp).state)) {
+        it.printf(440, 95, id(font_huge), "%.1f °C", id(ha_weather_temp).state);
+      } else {
+        it.print(440, 95, id(font_huge), "-- °C");
+      }
+
+      // Wetterzustand auf Deutsch uebersetzen
+      std::string cond = id(ha_weather_condition).state;
+      std::string cond_de = "Aktuelles Wetter";
+      if (cond == "sunny" || cond == "clear-night") cond_de = "Sonnig / Klar";
+      else if (cond == "partlycloudy") cond_de = "Leicht bewölkt";
+      else if (cond == "cloudy") cond_de = "Bewölkt";
+      else if (cond == "rainy" || cond == "pouring") cond_de = "Regnerisch";
+      else if (cond == "snowy" || cond == "snowy-rainy") cond_de = "Schneefall";
+      else if (cond == "lightning" || cond == "lightning-rainy") cond_de = "Gewitter";
+      else if (cond == "windy") cond_de = "Windig";
+      else if (cond == "fog") cond_de = "Nebelig";
+      else if (!cond.empty()) cond_de = cond;
+
+      it.printf(440, 160, id(font_title), "%s", cond_de.c_str());
+
+      // Trennlinie fuer Detailwerte
+      it.line(440, 205, 765, 205);
+
+      // Detail-Metriken
+      if (!std::isnan(id(ha_weather_humidity).state)) {
+        it.printf(440, 225, id(font_sub), "Luftfeuchtigkeit:  %.0f %%", id(ha_weather_humidity).state);
+      } else {
+        it.print(440, 225, id(font_sub), "Luftfeuchtigkeit:  -- %");
+      }
+
+      if (!std::isnan(id(ha_weather_wind_speed).state)) {
+        it.printf(440, 265, id(font_sub), "Wind:  %.1f km/h", id(ha_weather_wind_speed).state);
+      } else {
+        it.print(440, 265, id(font_sub), "Wind:  -- km/h");
+      }
+
+      if (!std::isnan(id(ha_weather_pressure).state)) {
+        it.printf(440, 305, id(font_sub), "Luftdruck:  %.0f hPa", id(ha_weather_pressure).state);
+      } else {
+        it.print(440, 305, id(font_sub), "Luftdruck:  -- hPa");
+      }
+
+      // --- Kachel 5: System & Status ---
+      it.rectangle(425, 380, 360, 85);
+      it.print(440, 392, id(font_label), "SYSTEM & STATUS");
+      it.print(440, 415, id(font_small), "Intervall: 15 Minuten (Akkubetrieb)");
+
+      if (!std::isnan(id(wifi_rssi).state)) {
+        it.printf(440, 435, id(font_small), "WLAN Empfang (RSSI): %.0f dBm", id(wifi_rssi).state);
+      } else {
+        it.print(440, 435, id(font_small), "WLAN: Verbunden");
+      }
+
+# Automatischer Ablauf nach dem Aufwachen:
+# 1. Prueft sekündlich, ob WLAN verbunden und Home Assistant Daten bereitstehen.
+# 2. Aktualisiert einmalig das ePaper Display.
+# 3. Wartet kurz fuer die E-Paper Aktualisierung und geht dann zurueck in Deep Sleep.
+interval:
+  - interval: 2s
+    then:
+      - if:
+          condition:
+            and:
+              - wifi.connected:
+              - lambda: "return !id(refreshed_display);"
+              - lambda: "return !std::isnan(id(ha_solar_power).state) || !std::isnan(id(ha_house_power).state);"
+          then:
+            - logger.log: "Daten empfangen. Aktualisiere ePaper Display..."
+            - component.update: epaper_display
+            - lambda: "id(refreshed_display) = true;"
+            - delay: 8s
+            - if:
+                condition:
+                  lambda: "return !id(prevent_deep_sleep).state;"
+                then:
+                  - logger.log: "Aktualisierung abgeschlossen. Gehe in Deep Sleep..."
+                  - deep_sleep.enter: deep_sleep_ctrl
+                else:
+                  - logger.log: "Prevent Deep Sleep ist aktiv. Bleibe wach fuer Wartung/OTA."
