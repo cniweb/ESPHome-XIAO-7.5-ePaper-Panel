@@ -80,3 +80,29 @@ Die Firmware nutzt die native Home Assistant API (`homeassistant` Plattform in E
 2. **Secrets**:
    - `secrets.yaml` enthaelt WLAN-Zugangsdaten und API-Schluessel und darf niemals committet werden (`.gitignore`).
    - `secrets.yaml.example` dient als Vorlage fuer neue Umgebungen.
+
+---
+
+## Lessons Learned & Hardware-Analysen
+
+### 1. Schaltplan-Fakten zum Batterie-Monitoring (ePaper Driver Board v1.0)
+- **Analyse der offiziellen Schematic (`ePaper_Driver_Board.pdf`)**:
+  - Der Li-Ion Akku (`BAT_4V2`) ist ausschließlich an den Power-Management- und Boost-IC **ETA9740E8A** (`U1`) angeschlossen.
+  - Der ETA9740 erzeugt daraus geregelte 5V (`VDD_5V`), welche über einen LDO auf 3.3V abgesenkt werden.
+  - Die Status-LEDs des ETA9740 (`LED1`, `LED2`, `LED3`, `EPD4`) sind als Standalone-LED-Bar verschaltet und besitzen **keine Verbindung** zum Sockel des XIAO ESP32-C3 (`CN4`).
+  - **Ergebnis**: Auf dem unmodifizierten Board existiert **keine physische Leiterbahn** zwischen Akkuspannung und den Analogeingängen des XIAO. Der ESP32-C3 "sieht" immer nur die geregelte Betriebsspannung.
+- **Community-Konsens (Seeed Forum Thread #292932 & Wiki Discussions #69)**:
+  - Ein direktes Auslesen per ADC erfordert das manuelle Einlöten eines 2:1 Spannungsteilers (z. B. 2× 100 kΩ) zwischen den Akkupads und einem freien ADC-Pin (oder den Tausch auf ein anderes Board).
+  - Ohne Lötarbeiten ist die **RTC-Zyklen-Schätzung** (`battery_cycles`) die robusteste und genaueste Methode, um den Ladestand auf dem Display und in Home Assistant bereitzustellen.
+
+### 2. Windows Defender Application Control (WDAC / Device Guard) & Toolchains
+- **Lokaler CLI-Build unter Windows**:
+  - Auf Windows-Systemen mit aktiver Device Guard- / WDAC-Richtlinie (Constrained Language Mode) werden frisch von PlatformIO heruntergeladene RISC-V-Cross-Compiler (`riscv32-esp-elf-ar.exe`, `gcc`, etc.) blockiert (`FAILED: code=4551`).
+  - **Lösung / Best Practice**: Drahtlose OTA-Updates primär über das **Home Assistant ESPHome Add-on** (Weg 1) ausführen. Dort läuft der Build innerhalb eines Linux-Docker-Containers ohne Windows-Richtlinienbeschränkungen.
+
+### 3. Exakte Secrets-Namenskonvention
+- Das ESPHome Add-on in Home Assistant vergibt beim Anlegen gerätespezifische Secrets mit Präfix:
+  - `seeed_xiao_esp32c3__encryption_key`
+  - `seeed_xiao_esp32c3__ota_password`
+  - `seeed_xiao_esp32c3__ap_password`
+- Lokale YAML-Dateien müssen exakt diese Schlüssel verwenden, damit Copy-Paste in das Home Assistant Dashboard ohne manuelle Anpassung der Secrets-Namen funktioniert.
