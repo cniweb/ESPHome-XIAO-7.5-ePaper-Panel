@@ -36,6 +36,11 @@ High-signal context for AI agents working on `ESPHome-XIAO-7.5-ePaper-Panel`.
 ## Energie-Management & Deep Sleep
 
 - **Akkubetrieb**: Das Panel laeuft mit dem integrierten 2000 mAh Li-Ion Akku.
+- **Akku-Ladestands-Messung**:
+  - Auf diesem Board existiert ab Werk kein ADC-Spannungsteiler vom Akku zum ESP32-C3.
+  - Die Firmware nutzt einen RTC-persistierten Zyklencounter (`battery_cycles`, Basis: 2800 Zyklen à 15 Minuten = ~4 Wochen).
+  - Der Ladestand wird in `%` auf dem ePaper angezeigt und als `sensor.battery_level` nach Home Assistant exponiert.
+  - Reset nach Vollaufladung via HA-Button `button.reset_battery_100`.
 - **Deep-Sleep-Zyklus**:
   - Schlafdauer: 15 Minuten (`sleep_duration: 15min`).
   - Max. Wachdauer: 45 Sekunden (`run_duration: 45s`).

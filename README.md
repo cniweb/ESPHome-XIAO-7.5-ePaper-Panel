@@ -49,21 +49,27 @@ Visualisiert live und tagesbasiert:
 |   296 W                            |   Wind:             12.0 km/h     |
 |   Heute: 6.46 kWh                  |   Luftdruck:        1018 hPa      |
 +------------------------------------+-----------------------------------+
-| [NETZSTATUS: EINSPEISUNG]          | [SYSTEM & STATUS]                 |
-|   +236 W                           |   Intervall: 15 Min. (Akkubetrieb)|
+| [NETZSTATUS: EINSPEISUNG]          | [SYSTEM & STATUS]             [==]|
+|   +236 W                           |   Akku: 98 % | Intervall: 15 Min. |
 |   Ueberschuss wird eingespeist     |   WLAN Empfang: -64 dBm           |
 +------------------------------------+-----------------------------------+
 ```
 
 ---
 
-## Energie-Management & Deep Sleep
+## Energie-Management & Akku-Ladestand
 
 1. **15-Minuten-Intervall**: Das Panel wacht alle 15 Minuten aus dem Deep Sleep auf.
 2. **Schnell-Synchronisation**: Nach erfolgreicher WLAN-Verbindung und Eintreffen der Sensordaten aus Home Assistant wird das ePaper-Display einmalig aktualisiert.
-3. **Automatischer Tiefschlaf**: Nach dem Refresh schläft der ESP32-C3 sofort wieder ein.
-4. **Schutzschaltung**: Nach spätestens 45 Sekunden Wachzeit schläft das Panel in jedem Fall ein, selbst bei WLAN-Verbindungsabbrüchen, um den 2000 mAh Akku zu schonen.
-5. **OTA-Wartungsmodus**: In Home Assistant steht der Schalter `switch.prevent_deep_sleep` zur Verfügung. Wird dieser aktiviert, bleibt das Panel nach dem nächsten Aufwachen dauerhaft online, um Firmware-Updates über WLAN (OTA) zu ermöglichen.
+3. **Akku-Ladestandanzeige**:
+   - Da das Seeed XIAO 7.5" ePaper Panel herstellerseitig keinen ADC-Spannungsteiler verdrahtet hat, nutzt die Firmware eine präzise **RTC-Zyklen-Schätzung** (persistiert im RTC-Speicher über alle Deep-Sleep-Phasen).
+   - Ausgelegt auf den 2000 mAh Akku (ca. 2800 Zyklen à 15 Minuten = ~4 Wochen Laufzeit).
+   - Zeigt den Ladestand in `%` sowie als dynamisches grafisches Batteriesymbol an.
+   - Exponiert die Entität `sensor.battery_level` in Home Assistant.
+   - Nach dem Aufladen kann der Zähler über den Button **`button.reset_battery_100`** in Home Assistant einfach wieder auf 100 % zurückgesetzt werden.
+4. **Automatischer Tiefschlaf**: Nach dem Refresh schläft der ESP32-C3 sofort wieder ein.
+5. **Schutzschaltung**: Nach spätestens 45 Sekunden Wachzeit schläft das Panel in jedem Fall ein, selbst bei WLAN-Verbindungsabbrüchen, um den 2000 mAh Akku zu schonen.
+6. **OTA-Wartungsmodus**: In Home Assistant steht der Schalter `switch.prevent_deep_sleep` zur Verfügung. Wird dieser aktiviert, bleibt das Panel nach dem nächsten Aufwachen dauerhaft online, um Firmware-Updates über WLAN (OTA) zu ermöglichen.
 
 ---
 
