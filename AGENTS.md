@@ -106,3 +106,20 @@ Die Firmware nutzt die native Home Assistant API (`homeassistant` Plattform in E
   - `seeed_xiao_esp32c3__ota_password`
   - `seeed_xiao_esp32c3__ap_password`
 - Lokale YAML-Dateien müssen exakt diese Schlüssel verwenden, damit Copy-Paste in das Home Assistant Dashboard ohne manuelle Anpassung der Secrets-Namen funktioniert.
+
+### 4. Build-Absturz durch Out-of-Memory (cc1plus Killed / Signal terminated)
+- **Problem**: Bei Hosts mit begrenztem Arbeitsspeicher (z. B. Raspberry Pi 3/4, HA Green oder Docker-Container ohne ausreichend Swap) bricht der Compiler mit folgendem Fehler ab:
+  ```text
+  riscv32-esp-elf-g++: fatal error: Killed signal terminated program cc1plus
+  compilation terminated.
+  ninja: build stopped: subcommand failed.
+  ```
+- **Ursache**: Ninja startet standardmäßig so viele parallele C++-Compilerprozesse wie CPU-Kerne vorhanden sind. Da jeder `riscv32-esp-elf-g++`-Prozess mehrere hundert Megabyte RAM benötigt, greift der Linux OOM-Killer (`SIGKILL`) ein.
+- **Lösung**: Begrenzung der parallelen Compiler-Prozesse auf `1` direkt im YAML-Header via:
+  ```yaml
+  esphome:
+    name: ${name}
+    friendly_name: ${friendly_name}
+    compile_process_limit: 1
+  ```
+  Zusätzlich kann im Home Assistant ESPHome Add-on unter *Konfiguration* der Wert `default_compile_process_limit: 1` gesetzt werden.

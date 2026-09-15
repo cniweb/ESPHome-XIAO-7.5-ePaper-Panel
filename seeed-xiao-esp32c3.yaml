@@ -6,6 +6,7 @@ esphome:
   name: ${name}
   friendly_name: ${friendly_name}
   min_version: "2024.6.0"
+  compile_process_limit: 1
 
 esp32:
   board: esp32-c3-devkitm-1
